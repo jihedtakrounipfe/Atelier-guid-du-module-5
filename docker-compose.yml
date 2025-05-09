@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Service
+  postgres:
+    image: postgres:14-alpine
+    container_name: movie-postgres
+    environment:
+      POSTGRES_DB: movie_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: jihed
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # Changed host port to 5433
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  # Redis Service
+  redis:
+    image: redis:alpine
+    container_name: movie-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Service (Spring Boot)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile-back
+    container_name: movie-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/movie_management
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: jihed
+      SPRING_REDIS_HOST: redis
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgres
+      - redis
+    healthcheck:
+      test: ["CMD-SHELL", "curl", "--silent", "--fail", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      retries: 3
+
+  # Frontend Service (Nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile-front
+    container_name: movie-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres-data:
+  redis-data:
